@@ -13,10 +13,6 @@ from arkham_connector.settings import ConnectorSettings
 
 def run_connector(settings: ConnectorSettings | None = None) -> None:
     settings = settings or ConnectorSettings()
-    logging.basicConfig(
-        level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-    )
-
     api_key = client.get_api_key()
 
     output_path = settings.output_file

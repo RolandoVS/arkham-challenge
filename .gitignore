@@ -35,3 +35,7 @@ Thumbs.db
 *.json
 raw_data.parquet # Specific to your challenge
 
+# Logs
+logs/
+*.log
+
