@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 """
 Pytest configuration and shared test helpers.
 
@@ -12,6 +10,8 @@ What we do here:
 - Add the repo root to `sys.path` so tests can import `connector` reliably without
   requiring packaging/installation steps.
 """
+
+from __future__ import annotations
 
 import sys
 from pathlib import Path
