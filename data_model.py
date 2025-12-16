@@ -1,4 +1,5 @@
-"""Data model builder (Part 2).
+"""
+Data model builder
 
 This project currently extracts *daily* generator-level outage observations from EIA.
 The raw file (`raw_data.parquet`) has these columns:

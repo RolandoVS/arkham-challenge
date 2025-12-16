@@ -17,6 +17,7 @@ import logging
 import os
 import sys
 import time
+from contextlib import suppress
 from pathlib import Path
 
 import pandas as pd
@@ -24,10 +25,15 @@ import pandas as pd
 # import json for debugging
 # import json
 import requests
-from dotenv import load_dotenv
+from dotenv import find_dotenv, load_dotenv
 
 # Load environment variables from a local `.env` file (if present).
-load_dotenv()
+# Note: In some environments (e.g., sandboxed CI/restricted filesystems), `.env` may be
+# present but unreadable, which would otherwise raise at import time and break tests.
+_dotenv_path = find_dotenv(usecwd=True)
+if _dotenv_path:
+    with suppress(PermissionError, OSError):
+        load_dotenv(_dotenv_path)
 
 # --- CONFIGURATION ---
 BASE_URL = "https://api.eia.gov/v2/"
