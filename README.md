@@ -165,6 +165,8 @@ curl -X POST -H "Authorization: Bearer $API_TOKEN" \
   "http://127.0.0.1:8000/refresh?preview=true&head=5" | python -m json.tool
 ```
 
+<img width="746" height="930" alt="Screenshot 2025-12-16 at 2 17 54 a m" src="https://github.com/user-attachments/assets/199b3855-a283-44cf-b678-bc65505fb07f" />
+
 ##### `GET /data`
 
 Returns outage data joined with dimensions, with filters + pagination.
@@ -217,6 +219,9 @@ print(top)
 PY
 ```
 
+<img width="504" height="200" alt="Screenshot 2025-12-16 at 2 19 26 a m" src="https://github.com/user-attachments/assets/b73884f8-900f-4a6a-a6db-02d17df4fad8" />
+
+
 #### 2) Outage counts by month (based on outage start date)
 
 ```bash
@@ -231,6 +236,9 @@ counts = df.groupby(["Year", "Month"]).size().reset_index(name="OutageEvents")
 print(counts.sort_values(["Year", "Month"]).tail(24))
 PY
 ```
+
+<img width="301" height="43" alt="Screenshot 2025-12-16 at 2 19 47 a m" src="https://github.com/user-attachments/assets/803890db-db84-4593-96d6-694870a7384a" />
+
 
 ---
 
