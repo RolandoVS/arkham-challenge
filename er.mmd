@@ -1,0 +1,30 @@
+erDiagram
+    DIM_PLANT ||--o{ FACT_OUTAGE : has
+    DIM_DATE  ||--o{ FACT_OUTAGE : starts_on
+
+    DIM_PLANT {
+        int PlantKey PK
+        string EIA_FacilityID
+        string PlantName
+        string UnitName
+        string Generator
+    }
+
+    DIM_DATE {
+        int DateKey PK
+        date Date
+        int Year
+        int Month
+        string DayOfWeek
+        boolean IsWeekend
+    }
+
+    FACT_OUTAGE {
+        int OutageKey PK
+        int PlantKey FK
+        int DateKey FK
+        datetime OutageStartTimestamp
+        datetime OutageEndTimestamp
+        float OutageDurationHours
+        string EIA_OutageID
+    }
