@@ -37,6 +37,12 @@ RAW_PATH=raw_data.parquet
 MODELED_DIR=modeled
 OUTPUT_FILE=raw_data.parquet
 
+# Optional: connector pagination + retries
+MAX_LIMIT=5000
+MAX_RECORDS=10000
+MAX_RETRIES=3
+RETRY_DELAY=5
+
 # Optional: connector behavior
 INCREMENTAL=1
 EARLY_STOP_ON_OLD_PERIOD=1
@@ -116,6 +122,7 @@ The ER diagram is committed as **`er.png`**.
 Start the API (loads `.env`):
 
 ```bash
+source .venv/bin/activate
 python -m uvicorn api:app --reload --env-file .env --log-level info
 ```
 
