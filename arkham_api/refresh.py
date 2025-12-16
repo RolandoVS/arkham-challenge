@@ -9,26 +9,19 @@ from uuid import uuid4
 
 import pandas as pd
 
-import connector
 import data_model
+from arkham_connector.runner import run_connector
+from arkham_connector.settings import ConnectorSettings
 
 
 def _run_connector_to(raw_path: Path) -> None:
-    """Run the extraction step, forcing connector output to raw_path.
-
-    Note: `connector` currently uses a module-level OUTPUT_FILE setting; this function
-    temporarily overrides it and restores it afterward.
-    """
-    old_output = connector.OUTPUT_FILE
-    connector.OUTPUT_FILE = str(raw_path)
+    """Run the extraction step, forcing output to raw_path."""
+    # Note: connector API key is still read from env (EIA_API_KEY).
+    settings = ConnectorSettings(output_file=raw_path)
     try:
-        try:
-            connector.run_connector()
-        except SystemExit as e:
-            # connector._get_api_key exits(1) when missing key; surface as a recoverable error.
-            raise RuntimeError("EIA_API_KEY missing or invalid") from e
-    finally:
-        connector.OUTPUT_FILE = old_output
+        run_connector(settings)
+    except SystemExit as e:
+        raise RuntimeError("EIA_API_KEY missing or invalid") from e
 
 
 def _preview_modeled(*, modeled_dir: Path, head: int) -> dict[str, Any]:

@@ -14,10 +14,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pandas as pd
 import pytest
 import requests
 
-import connector
+from arkham_connector import client
+from arkham_connector.runner import run_connector
+from arkham_connector.settings import ConnectorSettings
 
 
 class TestGetApiKey:
@@ -25,12 +28,12 @@ class TestGetApiKey:
         # Missing credentials is a hard stop: the connector should exit immediately.
         monkeypatch.delenv("EIA_API_KEY", raising=False)
         with pytest.raises(SystemExit):
-            connector._get_api_key()
+            client.get_api_key()
 
     def test_returns_value_when_present(self, monkeypatch: pytest.MonkeyPatch) -> None:
         # When present, the API key should be returned unchanged.
         monkeypatch.setenv("EIA_API_KEY", "test-key")
-        assert connector._get_api_key() == "test-key"
+        assert client.get_api_key() == "test-key"
 
 
 class TestFetchPageWithRetry:
@@ -49,9 +52,9 @@ class TestFetchPageWithRetry:
                     }
                 }
 
-        monkeypatch.setattr(connector, "MAX_RETRIES", 1)
-        monkeypatch.setattr(connector.requests, "get", lambda *a, **k: FakeResponse())
-        data = connector._fetch_page_with_retry("k", offset=0, limit=5)
+        settings = ConnectorSettings(max_retries=1)
+        monkeypatch.setattr(client.requests, "get", lambda *a, **k: FakeResponse())
+        data = client.fetch_page_with_retry(settings, "k", offset=0, limit=5)
         assert data["response"]["data"][0]["facility"] == "X"
 
     def test_sends_api_key_as_query_param(
@@ -74,8 +77,9 @@ class TestFetchPageWithRetry:
             captured["timeout"] = timeout
             return FakeResponse()
 
-        monkeypatch.setattr(connector.requests, "get", fake_get)
-        connector._fetch_page_with_retry("the-key", offset=10, limit=25)
+        monkeypatch.setattr(client.requests, "get", fake_get)
+        settings = ConnectorSettings()
+        client.fetch_page_with_retry(settings, "the-key", offset=10, limit=25)
 
         assert captured["params"]["api_key"] == "the-key"
         assert captured["params"]["offset"] == 10
@@ -97,9 +101,10 @@ class TestFetchPageWithRetry:
             def json(self) -> dict:
                 return {}
 
-        monkeypatch.setattr(connector.requests, "get", lambda *a, **k: FakeResponse())
+        monkeypatch.setattr(client.requests, "get", lambda *a, **k: FakeResponse())
+        settings = ConnectorSettings(max_retries=1)
         with pytest.raises(PermissionError):
-            connector._fetch_page_with_retry("bad", offset=0, limit=5)
+            client.fetch_page_with_retry(settings, "bad", offset=0, limit=5)
 
     @pytest.mark.parametrize("status_code", [401, 403])
     def test_auth_errors_do_not_retry(
@@ -127,12 +132,12 @@ class TestFetchPageWithRetry:
         def sleep_should_not_be_called(*_a, **_k) -> None:
             raise AssertionError("sleep should not be called for auth errors")
 
-        monkeypatch.setattr(connector, "MAX_RETRIES", 5)
-        monkeypatch.setattr(connector.time, "sleep", sleep_should_not_be_called)
-        monkeypatch.setattr(connector.requests, "get", fake_get)
+        settings = ConnectorSettings(max_retries=5, retry_delay=0)
+        monkeypatch.setattr(client.time, "sleep", sleep_should_not_be_called)
+        monkeypatch.setattr(client.requests, "get", fake_get)
 
         with pytest.raises(PermissionError):
-            connector._fetch_page_with_retry("bad", offset=0, limit=5)
+            client.fetch_page_with_retry(settings, "bad", offset=0, limit=5)
 
         assert calls["n"] == 1
 
@@ -144,12 +149,11 @@ class TestFetchPageWithRetry:
             calls["n"] += 1
             raise requests.exceptions.RequestException("network down")
 
-        monkeypatch.setattr(connector, "MAX_RETRIES", 2)
-        monkeypatch.setattr(connector, "RETRY_DELAY", 0)
-        monkeypatch.setattr(connector.time, "sleep", lambda *_a, **_k: None)
-        monkeypatch.setattr(connector.requests, "get", flaky_get)
+        settings = ConnectorSettings(max_retries=2, retry_delay=0)
+        monkeypatch.setattr(client.time, "sleep", lambda *_a, **_k: None)
+        monkeypatch.setattr(client.requests, "get", flaky_get)
 
-        assert connector._fetch_page_with_retry("k", offset=0, limit=5) is None
+        assert client.fetch_page_with_retry(settings, "k", offset=0, limit=5) is None
         assert calls["n"] == 2
 
     def test_http_error_retries_then_returns_none(
@@ -172,10 +176,10 @@ class TestFetchPageWithRetry:
             calls["n"] += 1
             return FakeResponse()
 
-        monkeypatch.setattr(connector, "MAX_RETRIES", 3)
-        monkeypatch.setattr(connector.requests, "get", always_500)
+        settings = ConnectorSettings(max_retries=3)
+        monkeypatch.setattr(client.requests, "get", always_500)
 
-        assert connector._fetch_page_with_retry("k", offset=0, limit=5) is None
+        assert client.fetch_page_with_retry(settings, "k", offset=0, limit=5) is None
         assert calls["n"] == 3
 
 
@@ -189,12 +193,11 @@ class TestRunConnector:
         monkeypatch.setenv("EIA_API_KEY", "k")
 
         # Keep the run small/fast.
-        monkeypatch.setattr(connector, "MAX_LIMIT", 2)
-        monkeypatch.setattr(connector, "MAX_RECORDS", 10)
-
         # Direct output to a temp path.
         out = tmp_path / "out.parquet"
-        monkeypatch.setattr(connector, "OUTPUT_FILE", str(out))
+        settings = ConnectorSettings(
+            output_file=out, max_limit=2, max_records=10, max_retries=1, retry_delay=0
+        )
 
         # Simulate two pages then end-of-data.
         pages = [
@@ -221,7 +224,9 @@ class TestRunConnector:
             # offset is advanced by MAX_LIMIT in the connector; we don't need it here.
             return pages.pop(0) if pages else {"response": {"data": []}}
 
-        monkeypatch.setattr(connector, "_fetch_page_with_retry", fake_fetch)
+        monkeypatch.setattr(
+            client, "fetch_page_with_retry", lambda *_a, **_k: fake_fetch("", 0, 0)
+        )
 
         # Avoid depending on parquet engine behavior; just assert we wrote "something"
         # and capture how many rows made it through validation.
@@ -232,12 +237,74 @@ class TestRunConnector:
             seen["rows"] = len(self)
             Path(path).write_bytes(b"PAR1")
 
-        monkeypatch.setattr(
-            connector.pd.DataFrame, "to_parquet", fake_to_parquet, raising=True
-        )
+        monkeypatch.setattr(pd.DataFrame, "to_parquet", fake_to_parquet, raising=True)
 
-        connector.run_connector()
+        run_connector(settings)
 
         assert out.exists()
         # One record should be dropped due to facility=None
         assert seen["rows"] == 2
+
+    def test_incremental_appends_only_new_rows(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        # Seed an existing parquet with one row.
+        out = tmp_path / "raw.parquet"
+        pd.DataFrame(
+            [{"period": "2025-01-01", "facility": "A", "generator": "1"}]
+        ).to_parquet(out, index=False)
+
+        monkeypatch.setenv("EIA_API_KEY", "k")
+        settings = ConnectorSettings(
+            output_file=out,
+            max_limit=2,
+            max_records=0,
+            incremental=True,
+            early_stop_on_old_period=True,
+            max_retries=1,
+            retry_delay=0,
+        )
+
+        # Page 1 includes a duplicate of existing + a new row (newer period).
+        # Page 2 includes only duplicates (older/equal periods) -> should early-stop.
+        pages = [
+            {
+                "response": {
+                    "data": [
+                        {"period": "2025-02-01", "facility": "B", "generator": "2"},
+                        {"period": "2025-01-01", "facility": "A", "generator": "1"},
+                    ]
+                }
+            },
+            {
+                "response": {
+                    "data": [
+                        {"period": "2025-01-01", "facility": "A", "generator": "1"},
+                    ]
+                }
+            },
+        ]
+
+        def fake_fetch(_api_key: str, offset: int, limit: int):  # noqa: ARG001
+            return pages.pop(0) if pages else {"response": {"data": []}}
+
+        monkeypatch.setattr(
+            client,
+            "fetch_page_with_retry",
+            lambda *_a, **_k: fake_fetch("", 0, 0),
+        )
+
+        run_connector(settings)
+
+        df = pd.read_parquet(out)
+        assert len(df) == 2
+        # Ensure both rows exist (and no duplicates).
+        keys = set(
+            zip(
+                df["period"].astype(str),
+                df["facility"].astype(str),
+                df["generator"].astype(str),
+                strict=True,
+            )
+        )
+        assert keys == {("2025-01-01", "A", "1"), ("2025-02-01", "B", "2")}
