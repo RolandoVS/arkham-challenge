@@ -96,6 +96,8 @@ Print debugging previews:
 python data_model.py --print-raw --print-modeled --head 20
 ```
 
+<img width="1297" height="1076" alt="Screenshot 2025-12-16 at 12 11 50 a m" src="https://github.com/user-attachments/assets/1b6af33b-bd74-49d2-920c-5227dfcc5f9c" />
+
 Outputs written to `modeled/`:
 - `modeled/dim_plant.parquet`
 - `modeled/dim_date.parquet`
@@ -104,6 +106,8 @@ Outputs written to `modeled/`:
 #### ER diagram
 
 The ER diagram is committed as **`er.png`**.
+
+<img width="619" height="759" alt="er" src="https://github.com/user-attachments/assets/2d66d8e5-2334-4832-b380-539c585a8f1d" />
 
 ---
 
