@@ -3,6 +3,7 @@
 venv/
 env/
 ENV/
+*.pyc
 
 # Environment variables
 .env
@@ -27,4 +28,10 @@ __pycache__/
 # OS
 .DS_Store
 Thumbs.db
+
+# Data files
+*.parquet
+*.csv
+*.json
+raw_data.parquet # Specific to your challenge
 
